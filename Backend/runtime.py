@@ -1,1 +1,45 @@
-import abstract
+import multiprocessing as mp
+import time
+from flask import Flask, request
+
+def runtime_loop(shared_data):
+    """Handles connection to cozmo and
+    processes commands from shared memory."""
+    print("[Runtime] Runtime loop active.")
+    while True:
+        # Check shared dictionary
+        if shared_data.get("command") == "spin":
+            print("[Runtime] SPINNING!")
+            shared_data["command"] = "idle"
+            
+        elif shared_data.get("command") == "move":
+            print("[Runtime] MOVING!")
+            shared_data["command"] = "idle"
+
+        time.sleep(0.01)
+
+app = Flask(__name__)
+shared_data = None 
+
+@app.route("/trigger/<cmd>")
+def trigger(cmd):
+    # write to shared memory
+    shared_data["command"] = cmd
+    return f"Set command to {cmd}", 200
+
+def runtime():
+    global shared_data
+    # Manager
+    manager = mp.Manager()
+    
+    # Create a shared dictionary
+    shared_data = manager.dict()
+    shared_data["command"] = "idle"
+
+    p = mp.Process(target=runtime_loop, args=(shared_data,))
+    p.daemon = True
+    p.start()
+    app.run(port=5000, debug=False)
+
+if __name__ == "__main__":
+    runtime()
