@@ -20,17 +20,17 @@ def runtime_loop(shared_data):
             if shared_data.get("command") == "turnl":
                 print("[Runtime] TURNING LEFT!")
                 shared_data["command"] = "idle"
-                cli.drive_wheels(-50,50,0.1)
+                cli.drive_wheels(-50,50,duration=0.1)
 
             elif shared_data.get("command") == "fwd":
                 print("[Runtime] FORWARD!")
                 shared_data["command"] = "idle"
-                cli.drive_wheels(50,50,0.1)
+                cli.drive_wheels(50,50,duration=0.1)
             
             elif shared_data.get("command") == "turnr":
                 print("[Runtime] TURNING RIGHT!")
                 shared_data["command"] = "idle"
-                cli.drive_wheels(50,-50,0.1)
+                cli.drive_wheels(50,-50,duration=0.1)
 
             elif shared_data.get("command") == "connect":
                 print("[Runtime] CONNECTING TO COZMO!")
@@ -40,7 +40,7 @@ def runtime_loop(shared_data):
                 cli.connect()
                 cli.wait_for_robot(5)
                 print("[Runtime] Connected to Cozmo.")
-                
+
             elif shared_data.get("command") == "disconnect":
                 print("[Runtime] DISCONNECTING FROM COZMO!")
                 shared_data["command"] = "idle"
