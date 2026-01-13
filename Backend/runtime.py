@@ -1,5 +1,8 @@
+import logging
 import multiprocessing as mp, time, pycozmo
+import threading
 from flask import Flask, request
+import sys
 
 def runtime_loop(shared_data):
     """Handles connection to cozmo and
@@ -16,22 +19,44 @@ def runtime_loop(shared_data):
     print("[Runtime] Runtime loop active.")
     while True:
         try:
-            # Check shared dictionary
+            # Handle Drive Base
             if shared_data.get("command") == "turnl":
                 print("[Runtime] TURNING LEFT!")
                 shared_data["command"] = "idle"
-                cli.drive_wheels(-50,50,duration=0.1)
+                cli.drive_wheels(-50,50)
 
             elif shared_data.get("command") == "fwd":
                 print("[Runtime] FORWARD!")
                 shared_data["command"] = "idle"
-                cli.drive_wheels(50,50,duration=0.1)
+                cli.drive_wheels(50,50)
             
             elif shared_data.get("command") == "turnr":
                 print("[Runtime] TURNING RIGHT!")
                 shared_data["command"] = "idle"
-                cli.drive_wheels(50,-50,duration=0.1)
+                cli.drive_wheels(50,-50)
+            
+            elif shared_data.get("command") == "back":
+                print("[Runtime] BACKWARD!")
+                shared_data["command"] = "idle"
+                cli.drive_wheels(-50,-50)
+            
+            # Handle Lift
+            elif shared_data.get("command") == "liftup":
+                print("[Runtime] LIFTING UP!")
+                shared_data["command"] = "idle"
+                cli.set_lift_height(pycozmo.MAX_LIFT_HEIGHT.mm)
+            elif shared_data.get("command") == "liftdown":
+                print("[Runtime] LIFTING DOWN!")
+                shared_data["command"] = "idle"
+                cli.set_lift_height(pycozmo.MIN_LIFT_HEIGHT.mm)
+            
+            #Stop all actions
+            elif shared_data.get("command") == "stop":
+                print("[Runtime] STOP!")
+                shared_data["command"] = "idle"
+                cli.stop_all_motors()
 
+            # Handle Connect/Disconnect
             elif shared_data.get("command") == "connect":
                 print("[Runtime] CONNECTING TO COZMO!")
                 shared_data["command"] = "idle"
@@ -47,6 +72,11 @@ def runtime_loop(shared_data):
                 cli.disconnect()
                 print("[Runtime] Disconnected from Cozmo.")
 
+            # Allow an external 'kill_all' command to stop this worker loop
+            if shared_data.get("command") == "kill_all":
+                print('[Runtime] kill_all received in worker loop, exiting...')
+                break
+
             time.sleep(0.01)
         except Exception as e:
             print("[Runtime] Error in runtime loop:",e)
@@ -55,6 +85,8 @@ def runtime_loop(shared_data):
 
 app = Flask(__name__)
 shared_data = None 
+worker_proc = None
+worker_thread = None
 
 @app.route("/trigger/<cmd>")
 def trigger(cmd):
@@ -62,8 +94,57 @@ def trigger(cmd):
     shared_data["command"] = cmd
     return f"Set command to {cmd}", 200
 
+
+def _shutdown_server():
+    """Attempt to shut down the Flask dev server (works with werkzeug)."""
+    func = request.environ.get('werkzeug.server.shutdown')
+    if func is None:
+        print('[Runtime] Server shutdown function not available; exiting process.')
+        try:
+            sys.exit(0)
+        except SystemExit:
+            pass
+    else:
+        func()
+
+
+@app.route('/kill', methods=['GET', 'POST'])
+def kill():
+    """Endpoint to kill worker processes and stop the runtime server.
+
+    Any process (including the GUI) can call this to request a full shutdown.
+    """
+    global worker_proc, shared_data
+    print('[Runtime] Kill request received; shutting down workers and server...')
+    try:
+        shared_data['command'] = 'kill_all'
+    except Exception:
+        pass
+
+    # If the worker loop was started as a thread inside this process, try to join it
+    global worker_thread
+    if worker_thread is not None:
+        try:
+            if worker_thread.is_alive():
+                worker_thread.join(timeout=3)
+                print('[Runtime] Worker thread joined (or timed out).')
+        except Exception as e:
+            print('[Runtime] Error joining worker thread:', e)
+
+    try:
+        _shutdown_server()
+    except Exception as e:
+        print('[Runtime] Error shutting down server:', e)
+
+    return 'Shutting down', 200
+
 def runtime():
     global shared_data
+    # Reduce noisy pycozmo logging that can appear on reconnect (e.g. buffer-starved INFOs)
+    try:
+        logging.getLogger('pycozmo.robot').setLevel(logging.WARNING)
+    except Exception:
+        pass
     # Manager
     manager = mp.Manager()
     
@@ -71,9 +152,12 @@ def runtime():
     shared_data = manager.dict()
     shared_data["command"] = "idle"
 
-    p = mp.Process(target=runtime_loop, args=(shared_data,))
-    p.daemon = True
-    p.start()
+    # Start the runtime loop in a background thread inside this process.
+    # This avoids creating nested child processes that can become orphaned.
+    t = threading.Thread(target=runtime_loop, args=(shared_data,), daemon=True)
+    global worker_thread
+    worker_thread = t
+    t.start()
     app.run(port=5000, debug=False)
 
 if __name__ == "__main__":
