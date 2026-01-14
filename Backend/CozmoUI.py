@@ -10,19 +10,37 @@ class App(customtkinter.CTk):
         self.connect.pack(padx=20, pady=20)
         self.disconnect = customtkinter.CTkButton(self, text="Disconnect", command=backend.disconnect)
         self.disconnect.pack(padx=20, pady=20)
-        self.forward = customtkinter.CTkButton(self, text="Forward", command=backend.forward)
+        self.forward = customtkinter.CTkButton(self, text="Forward")
         self.forward.pack(padx=20, pady=20)
-        self.backward = customtkinter.CTkButton(self, text="Backward", command=backend.backward)
+        self.backward = customtkinter.CTkButton(self, text="Backward")
         self.backward.pack(padx=20, pady=20)
-        self.turnleft = customtkinter.CTkButton(self, text="Turn Left", command=backend.turn_left)
+        self.turnleft = customtkinter.CTkButton(self, text="Turn Left")
         self.turnleft.pack(padx=20, pady=20)
-        self.turnright = customtkinter.CTkButton(self, text="Turn Right", command=backend.turn_right)
+        self.turnright = customtkinter.CTkButton(self, text="Turn Right")
         self.turnright.pack(padx=20, pady=20)
 
         # Intercept window close (user presses the X button)
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
+        def forward(self):
+            backend.forward()
+        def backward(self):
+            backend.backward()
+        def left(self):
+            backend.turn_left()
+        def right(self):
+            backend.turn_right()
+        def stop(self):
+            backend.stop()
 
+        self.forward.bind("<ButtonPress-1>", forward)
+        self.forward.bind("<ButtonRelease-1>", stop)
+        self.backward.bind("<ButtonPress-1>", backward)
+        self.backward.bind("<ButtonRelease-1>", stop)
+        self.turnleft.bind("<ButtonPress-1>", left)
+        self.turnleft.bind("<ButtonRelease-1>", stop)
+        self.turnright.bind("<ButtonPress-1>", right)
+        self.turnright.bind("<ButtonRelease-1>", stop)
 def init():
     app = App()
     app.mainloop()

@@ -31,6 +31,10 @@ def disconnect():
     """Disconnect from Cozmo robot."""
     send_command("disconnect")
 
+def stop():
+    """Stop all Cozmo actions."""
+    send_command("stop")
+
 
 def shutdown_all():
     """Request that the runtime shuts down all worker processes and exits.
