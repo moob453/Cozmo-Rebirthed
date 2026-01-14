@@ -1,22 +1,43 @@
 import logging
-import multiprocessing as mp, time, pycozmo
+import multiprocessing as mp
+import time
+import pycozmo
 import threading
-from flask import Flask, request
+import io
+from flask import Flask, request, Response
 import sys
 
+# Global Buffer
+image_lock = threading.Lock()
+latest_jpeg_data = None
+
+def on_camera_image(cli, image):
+    global latest_jpeg_data
+    img_byte_arr = io.BytesIO()
+    image.save(img_byte_arr, format='JPEG')
+    jpeg_bytes = img_byte_arr.getvalue()
+    
+    with image_lock:
+        latest_jpeg_data = jpeg_bytes
+
 def runtime_loop(shared_data):
-    """Handles connection to cozmo and
-    processes commands from shared memory."""
     print("[Runtime] Connecting to Cozmo...")
     try:
         cli = pycozmo.Client()
         cli.start()
         cli.connect()
         cli.wait_for_robot(5)
+        
+        # Camera Setup
+        cli.enable_camera(True)
+        cli.add_handler(pycozmo.event.EvtNewRawCameraImage, on_camera_image)
+        
         print("[Runtime] Connected to Cozmo.")
     except Exception as e:
         print("[Runtime] ERROR:",e)
+        
     print("[Runtime] Runtime loop active.")
+    
     while True:
         try:
             # Handle Drive Base
@@ -50,7 +71,7 @@ def runtime_loop(shared_data):
                 shared_data["command"] = "idle"
                 cli.set_lift_height(pycozmo.MIN_LIFT_HEIGHT.mm)
             
-            #Stop all actions
+            # Stop all actions
             elif shared_data.get("command") == "stop":
                 print("[Runtime] STOP!")
                 shared_data["command"] = "idle"
@@ -64,6 +85,9 @@ def runtime_loop(shared_data):
                 cli.start()
                 cli.connect()
                 cli.wait_for_robot(5)
+                # Re-enable camera
+                cli.enable_camera(True)
+                cli.add_handler(pycozmo.event.EvtNewRawCameraImage, on_camera_image)
                 print("[Runtime] Connected to Cozmo.")
 
             elif shared_data.get("command") == "disconnect":
@@ -88,15 +112,33 @@ shared_data = None
 worker_proc = None
 worker_thread = None
 
+# Stream Generator
+def generate_frames():
+    while True:
+        with image_lock:
+            if latest_jpeg_data is None:
+                time.sleep(0.01)
+                continue
+            
+            frame_bytes = latest_jpeg_data
+            
+        yield (b'--frame\r\n'
+               b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+        
+        time.sleep(0.05)
+
 @app.route("/trigger/<cmd>")
 def trigger(cmd):
     # write to shared memory
     shared_data["command"] = cmd
     return f"Set command to {cmd}", 200
 
+# Video Route
+@app.route('/video_feed')
+def video_feed():
+    return Response(generate_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 def _shutdown_server():
-    """Attempt to shut down the Flask dev server (works with werkzeug)."""
     func = request.environ.get('werkzeug.server.shutdown')
     if func is None:
         print('[Runtime] Server shutdown function not available; exiting process.')
@@ -110,10 +152,6 @@ def _shutdown_server():
 
 @app.route('/kill', methods=['GET', 'POST'])
 def kill():
-    """Endpoint to kill worker processes and stop the runtime server.
-
-    Any process (including the GUI) can call this to request a full shutdown.
-    """
     global worker_proc, shared_data
     print('[Runtime] Kill request received; shutting down workers and server...')
     try:
@@ -121,7 +159,6 @@ def kill():
     except Exception:
         pass
 
-    # If the worker loop was started as a thread inside this process, try to join it
     global worker_thread
     if worker_thread is not None:
         try:
@@ -140,25 +177,24 @@ def kill():
 
 def runtime():
     global shared_data
-    # Reduce noisy pycozmo logging that can appear on reconnect (e.g. buffer-starved INFOs)
     try:
         logging.getLogger('pycozmo.robot').setLevel(logging.WARNING)
+        logging.getLogger('pycozmo.protocol').setLevel(logging.WARNING)
     except Exception:
         pass
-    # Manager
+    
     manager = mp.Manager()
     
     # Create a shared dictionary
     shared_data = manager.dict()
     shared_data["command"] = "idle"
 
-    # Start the runtime loop in a background thread inside this process.
-    # This avoids creating nested child processes that can become orphaned.
     t = threading.Thread(target=runtime_loop, args=(shared_data,), daemon=True)
     global worker_thread
     worker_thread = t
     t.start()
-    app.run(port=5000, debug=False)
+    
+    app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
 
 if __name__ == "__main__":
     runtime()
