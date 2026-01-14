@@ -1,3 +1,6 @@
+####
+# A vibe coded ai test for cozmo. will be completly removed and rewritten with new propper code
+####
 import cv2
 import torch
 import torch.nn as nn
