@@ -7,18 +7,10 @@ import io
 from flask import Flask, request, Response
 import sys
 
-# Global Buffer
-image_lock = threading.Lock()
-latest_jpeg_data = None
-
-def on_camera_image(cli, image):
-    global latest_jpeg_data
-    img_byte_arr = io.BytesIO()
-    image.save(img_byte_arr, format='JPEG')
-    jpeg_bytes = img_byte_arr.getvalue()
-    
-    with image_lock:
-        latest_jpeg_data = jpeg_bytes
+app = Flask(__name__)
+shared_data = None 
+worker_proc = None
+worker_thread = None
 
 def runtime_loop(shared_data):
     print("[Runtime] Connecting to Cozmo...")
@@ -28,13 +20,10 @@ def runtime_loop(shared_data):
         cli.connect()
         cli.wait_for_robot(5)
         
-        # Camera Setup
-        cli.enable_camera(True)
-        cli.add_handler(pycozmo.event.EvtNewRawCameraImage, on_camera_image)
-        
         print("[Runtime] Connected to Cozmo.")
     except Exception as e:
         print("[Runtime] ERROR:",e)
+        return
         
     print("[Runtime] Runtime loop active.")
     
@@ -85,9 +74,6 @@ def runtime_loop(shared_data):
                 cli.start()
                 cli.connect()
                 cli.wait_for_robot(5)
-                # Re-enable camera
-                cli.enable_camera(True)
-                cli.add_handler(pycozmo.event.EvtNewRawCameraImage, on_camera_image)
                 print("[Runtime] Connected to Cozmo.")
 
             elif shared_data.get("command") == "disconnect":
@@ -105,38 +91,12 @@ def runtime_loop(shared_data):
         except Exception as e:
             print("[Runtime] Error in runtime loop:",e)
             print("continuing...")
-            
-
-app = Flask(__name__)
-shared_data = None 
-worker_proc = None
-worker_thread = None
-
-# Stream Generator
-def generate_frames():
-    while True:
-        with image_lock:
-            if latest_jpeg_data is None:
-                time.sleep(0.01)
-                continue
-            
-            frame_bytes = latest_jpeg_data
-            
-        yield (b'--frame\r\n'
-               b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
-        
-        time.sleep(0.05)
 
 @app.route("/trigger/<cmd>")
 def trigger(cmd):
     # write to shared memory
     shared_data["command"] = cmd
     return f"Set command to {cmd}", 200
-
-# Video Route
-@app.route('/video_feed')
-def video_feed():
-    return Response(generate_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 def _shutdown_server():
     func = request.environ.get('werkzeug.server.shutdown')
@@ -176,7 +136,7 @@ def kill():
     return 'Shutting down', 200
 
 def runtime():
-    global shared_data
+    global shared_data, worker_thread
     try:
         logging.getLogger('pycozmo.robot').setLevel(logging.WARNING)
         logging.getLogger('pycozmo.protocol').setLevel(logging.WARNING)
@@ -184,13 +144,10 @@ def runtime():
         pass
     
     manager = mp.Manager()
-    
-    # Create a shared dictionary
     shared_data = manager.dict()
     shared_data["command"] = "idle"
 
     t = threading.Thread(target=runtime_loop, args=(shared_data,), daemon=True)
-    global worker_thread
     worker_thread = t
     t.start()
     
