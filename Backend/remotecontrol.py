@@ -14,7 +14,7 @@ def all_keys_released():
     return not bool(keyboard._pressed_events)
 
 def test_runtime_loop():
-    global state
+    global statewwdaddddddddddddddsw
     while True:
         # DriveBase
         if keyboard.is_pressed('w'):

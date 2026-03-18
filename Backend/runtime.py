@@ -21,6 +21,9 @@ def runtime_loop(shared_data):
         cli.wait_for_robot(5)
         
         print("[Runtime] Connected to Cozmo.")
+         # Set head to look up
+        angle = (pycozmo.robot.MAX_HEAD_ANGLE.radians - pycozmo.robot.MIN_HEAD_ANGLE.radians) / 2.0
+        cli.set_head_angle(angle)
     except Exception as e:
         print("[Runtime] ERROR:",e)
         return
