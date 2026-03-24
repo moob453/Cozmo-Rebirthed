@@ -1,0 +1,49 @@
+import os
+
+# Define the folder and the text file containing the names
+folder_path = 'raw_sound'
+list_file = os.path.join(folder_path, 'listname.txt')
+
+# Step 1: Read the text file and create a dictionary mapping IDs to Names
+id_to_name = {}
+with open(list_file, 'r', encoding='utf-8') as f:
+    for line in f:
+        # Split by whitespace/tabs
+        parts = line.strip().split()
+        if len(parts) >= 2:
+            file_id = parts[0]
+            new_name = parts[1]
+            id_to_name[file_id] = new_name
+
+# Step 2: Go through the folder and rename the .wav files
+renamed_count = 0
+missing_count = 0
+
+for filename in os.listdir(folder_path):
+    # Only process .wav files
+    if filename.endswith('.wav'):
+        # Extract the ID (everything before '.wav')
+        file_id = filename.replace('.wav', '')
+        
+        # Check if we have a name for this ID in our text file
+        if file_id in id_to_name:
+            new_filename = id_to_name[file_id] + '.wav'
+            
+            old_path = os.path.join(folder_path, filename)
+            new_path = os.path.join(folder_path, new_filename)
+            
+            # Rename the file
+            try:
+                os.rename(old_path, new_path)
+                renamed_count += 1
+                # print(f"Renamed: {filename} -> {new_filename}") # Uncomment to see every file renamed
+            except FileExistsError:
+                print(f"Skipped {filename}: {new_filename} already exists.")
+            except Exception as e:
+                print(f"Error renaming {filename}: {e}")
+        else:
+            missing_count += 1
+
+print(f"Done! Successfully renamed {renamed_count} files.")
+if missing_count > 0:
+    print(f"Note: {missing_count} .wav files didn't have a matching ID in the text file and were left alone.")
