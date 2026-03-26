@@ -79,8 +79,8 @@ Cozmo-Rebirthed/
 ### How it works
 
 ```
-┌─────────────────────���        HTTP (localhost:5000)       ┌──────────────────────────┐
-│   GUI Process       │  ─────────────────────────────►   │   Runtime Process        │
+┌─────────────────────┐        HTTP (localhost:5000)       ┌──────────────────────────┐
+│   GUI Process       │   ─────────────────────────────►   │   Runtime Process        │
 │  (CozmoUI.py)       │  /trigger/<cmd>                    │  (runtime.py + Flask)    │
 │                     │                                    │                          │
 │  customtkinter app  │                                    │  pycozmo client          │
