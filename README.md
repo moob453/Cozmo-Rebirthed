@@ -49,11 +49,11 @@ The project currently has a working multi-process architecture with a basic desk
 |---|---|
 | Live camera feed displayed inside the GUI | 🔄 In Progress |
 | Head angle control | 🔜 Planned |
-| Cozmo animations & emotional expressions | 🔜 Planned |
+| Cozmo animations & emotional expressions | 🔄 In Progress |
 | Face recognition | 🔜 Planned |
 | Light cube detection & interaction | 🔜 Planned |
-| Cozmo's idle/personality AI behaviours | 🔜 Planned |
-| Audio / sound effects | 🔜 Planned |
+| Cozmo's idle/personality AI behaviours | 🔄 In Progress |
+| Audio / sound effects | 🔄 In Progress |
 | Polished GUI (full app replacement) | 🔜 Planned |
 | Web interface (browser control) | 🔜 Planned |
 | Custom scripting / behaviour editor | 🔜 Future |
