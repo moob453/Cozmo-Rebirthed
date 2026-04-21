@@ -122,6 +122,9 @@ def runtime_loop(shared_data):
                 if last_im is not None:
                     frame_rgb = np.array(last_im.convert("RGB"))
                     frame_bgr = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR)
+                    
+                    # Resize the frame to make the viewing window larger (scale by 2x)
+                    frame_bgr = cv2.resize(frame_bgr, (0, 0), fx=2.0, fy=2.0, interpolation=cv2.INTER_LINEAR)
                     cv2.imshow("Cozmo Camera", frame_bgr)
 
                     # Press Q in the window to quit

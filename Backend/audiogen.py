@@ -32,7 +32,7 @@ def generate_tts_wav(text_to_speak, filepath):
 
 with pycozmo.connect() as cli:
     # Set volume to ~75%.
-    cli.set_volume(25000)
+    cli.set_volume(5000)
 
      # Set head to look up
     angle = (pycozmo.robot.MAX_HEAD_ANGLE.radians - pycozmo.robot.MIN_HEAD_ANGLE.radians) / 2.0
